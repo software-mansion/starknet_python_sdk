@@ -178,10 +178,12 @@ async def test_estimate_message_fee(client_sepolia_testnet):
 
     assert isinstance(estimated_message, EstimatedFee)
     assert estimated_message.overall_fee > 0
-    assert estimated_message.gas_price > 0
-    assert estimated_message.gas_consumed > 0
-    assert estimated_message.data_gas_price > 0
-    assert estimated_message.data_gas_consumed >= 0
+    assert estimated_message.l1_gas_price > 0
+    assert estimated_message.l1_gas_consumed > 0
+    assert estimated_message.l2_gas_price > 0
+    assert estimated_message.l2_gas_consumed > 0
+    assert estimated_message.l1_data_gas_price > 0
+    assert estimated_message.l1_data_gas_consumed >= 0
     assert estimated_message.unit is not None
 
 
@@ -311,6 +313,12 @@ async def test_get_transaction_status(client_sepolia_testnet):
 
     assert tx_status.finality_status == TransactionStatus.ACCEPTED_ON_L1
     assert tx_status.execution_status == TransactionExecutionStatus.SUCCEEDED
+
+
+@pytest.mark.asyncio
+async def test_get_transaction_status_with_failure_reason():
+    # TODO (#1498): Add a test for a transaction with failure_reason
+    pass
 
 
 @pytest.mark.asyncio

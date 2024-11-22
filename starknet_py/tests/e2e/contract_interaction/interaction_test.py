@@ -7,7 +7,7 @@ from starknet_py.contract import (
 )
 from starknet_py.hash.selector import get_selector_from_name
 from starknet_py.net.client_errors import ClientError
-from starknet_py.net.client_models import Call, ResourceBounds
+from starknet_py.net.client_models import Call, ResourceBounds, ResourceBoundsMapping
 from starknet_py.net.models import InvokeV1, InvokeV3
 from starknet_py.tests.e2e.fixtures.constants import (
     MAX_FEE,
@@ -31,7 +31,7 @@ async def test_prepare_and_invoke_v1(map_contract):
 @pytest.mark.asyncio
 async def test_prepare_and_invoke_v3(map_contract):
     prepared_invoke = map_contract.functions["put"].prepare_invoke_v3(
-        key=1, value=2, l1_resource_bounds=MAX_RESOURCE_BOUNDS_L1
+        key=1, value=2, resource_bounds=MAX_RESOURCE_BOUNDS
     )
     assert isinstance(prepared_invoke, PreparedFunctionInvokeV3)
 
@@ -52,7 +52,7 @@ async def test_invoke_v1(map_contract):
 @pytest.mark.asyncio
 async def test_invoke_v3(map_contract):
     invocation = await map_contract.functions["put"].invoke_v3(
-        key=1, value=2, l1_resource_bounds=MAX_RESOURCE_BOUNDS_L1
+        key=1, value=2, resource_bounds=MAX_RESOURCE_BOUNDS
     )
     assert isinstance(invocation.invoke_transaction, InvokeV3)
     assert invocation.invoke_transaction.resource_bounds == MAX_RESOURCE_BOUNDS
@@ -90,7 +90,7 @@ async def test_throws_invoke_v1_without_max_fee(map_contract):
 async def test_throws_invoke_v3_without_resource_bounds(map_contract):
     error_message = (
         "One of arguments: "
-        "l1_resource_bounds or auto_estimate must be specified when invoking a transaction."
+        "resource_bounds or auto_estimate must be specified when invoking a transaction."
     )
 
     with pytest.raises(ValueError, match=error_message):
@@ -112,7 +112,7 @@ async def test_throws_prepared_invoke_v1_without_max_fee(map_contract):
 async def test_throws_prepared_invoke_v3_without_resource_bounds(map_contract):
     error_message = (
         "One of arguments: "
-        "l1_resource_bounds or auto_estimate must be specified when invoking a transaction."
+        "resource_bounds or auto_estimate must be specified when invoking a transaction."
     )
 
     prepared_invoke = map_contract.functions["put"].prepare_invoke_v3(2, 3)
@@ -158,24 +158,25 @@ async def test_latest_max_fee_takes_precedence(map_contract):
 @pytest.mark.asyncio
 async def test_latest_resource_bounds_take_precedence(map_contract):
     prepared_function = map_contract.functions["put"].prepare_invoke_v3(
-        key=1, value=2, l1_resource_bounds=MAX_RESOURCE_BOUNDS_L1
+        key=1, value=2, resource_bounds=MAX_RESOURCE_BOUNDS
     )
 
-    updated_resource_bounds = ResourceBounds(
+    updated_l1_resource_bounds = ResourceBounds(
         max_amount=MAX_RESOURCE_BOUNDS_L1.max_amount + 100,
         max_price_per_unit=MAX_RESOURCE_BOUNDS_L1.max_price_per_unit + 200,
     )
-    invocation = await prepared_function.invoke(
-        l1_resource_bounds=updated_resource_bounds
+    resource_bounds = ResourceBoundsMapping(
+        l1_gas=updated_l1_resource_bounds,
+        l2_gas=ResourceBounds.init_with_zeros(),
     )
+    invocation = await prepared_function.invoke(resource_bounds=resource_bounds)
 
     assert isinstance(invocation.invoke_transaction, InvokeV3)
     assert (
-        invocation.invoke_transaction.resource_bounds.l1_gas == updated_resource_bounds
+        invocation.invoke_transaction.resource_bounds.l1_gas == resource_bounds.l1_gas
     )
     assert (
-        invocation.invoke_transaction.resource_bounds.l2_gas
-        == ResourceBounds.init_with_zeros()
+        invocation.invoke_transaction.resource_bounds.l2_gas == resource_bounds.l2_gas
     )
 
 

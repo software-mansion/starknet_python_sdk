@@ -2,6 +2,20 @@ Migration guide
 ===============
 
 ******************************
+0.25.0 Migration guide
+******************************
+
+Version 0.25.0 of **starknet.py** comes with support for RPC 0.8.0!
+
+0.25.0 Targeted versions
+------------------------
+
+- Starknet - `0.13.3 <https://docs.starknet.io/documentation/starknet_versions/version_notes/#version0.13.3>`_
+- RPC - `0.8.0 <https://github.com/starkware-libs/starknet-specs/releases/tag/v0.8.0>`_
+
+TODO (#1498): List changes
+
+******************************
 0.24.2 Migration guide
 ******************************
 
@@ -186,7 +200,7 @@ Changes in the :class:`~starknet_py.net.account.account.Account`:
 - :meth:`sign_declare_transaction`, :meth:`sign_declare_v2_transaction`, :meth:`sign_deploy_account_transaction` and :meth:`sign_invoke_transaction` have been renamed to :meth:`~Account.sign_declare_v1`, :meth:`~Account.sign_declare_v2`, :meth:`~Account.sign_deploy_account_v1` and :meth:`~Account.sign_invoke_v1` respectively
 
 All new functions with ``v3`` in their name operate similarly to their ``v1`` and ``v2`` counterparts.
-Unlike their ``v1`` counterparts however, ``v3`` transaction fees are paid in Fri (10^-18 STRK). Therefore,  ``max_fee`` parameter, which is typically set in Wei, is not applicable for ``v3`` functions. Instead, ``l1_resource_bounds`` parameter is utilized to limit the Fri amount used.
+Unlike their ``v1`` counterparts however, ``v3`` transaction fees are paid in Fri (10^-18 STRK). Therefore,  ``max_fee`` parameter, which is typically set in Wei, is not applicable for ``v3`` functions. Instead, ``resource_bounds`` parameter is utilized to limit the Fri amount used.
 The same applies to the new ``v3`` methods in the :class:`~starknet_py.contract.Contract` class.
 
 Changes in the :class:`~starknet_py.net.full_node_client.FullNodeClient`:

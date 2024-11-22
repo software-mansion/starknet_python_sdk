@@ -9,16 +9,19 @@ from starknet_py.net.client_models import (
     BlockStateUpdate,
     BlockTransactionTrace,
     Call,
+    ContractStorageKeys,
     DeclareTransactionResponse,
     DeployAccountTransactionResponse,
     DeprecatedContractClass,
     EstimatedFee,
     Hash,
+    MessageStatus,
     PendingBlockStateUpdate,
     PendingStarknetBlock,
     SentTransactionResponse,
     SierraContractClass,
     StarknetBlock,
+    StorageProofResponse,
     Tag,
     Transaction,
     TransactionExecutionStatus,
@@ -98,6 +101,25 @@ class Client(ABC):
         :param block_hash: Block's hash or literals `"pending"` or `"latest"`
         :param block_number: Block's number or literals `"pending"` or `"latest"`
         :return: Storage value of given contract
+        """
+
+    @abstractmethod
+    async def get_storage_proof(
+        self,
+        block_id: Union[int, Hash, Tag],
+        class_hashes: Optional[List[int]] = None,
+        contract_addresses: Optional[List[int]] = None,
+        contract_storage_keys: Optional[List[ContractStorageKeys]] = None,
+    ) -> StorageProofResponse:
+        """
+        Get merkle paths in one of the state tries: global state, classes, individual contract.
+
+        :param block_id: Hash of the requested block, or number (height) of the requested block, or a block tag.
+        :param class_hashes: List of the class hashes for which we want to prove membership in the classes trie.
+        :param contract_addresses: List of the contract addresses for which we want to prove membership in the
+                                    contracts trie.
+        :param contract_storage_keys: List of the contract address and storage keys pairs.
+        :return: StorageProofResponse object.
         """
 
     @abstractmethod
@@ -307,3 +329,14 @@ class Client(ABC):
     @abstractmethod
     async def get_chain_id(self) -> str:
         """Return the currently configured Starknet chain id"""
+
+    @abstractmethod
+    async def get_messages_status(
+        self, l1_transaction_hash: int
+    ) -> List[MessageStatus]:
+        """
+        Get L1 handler transaction data for all L1 to L2 messages sent by the given L1 transaction.
+
+        :param l1_transaction_hash: Hash of the L1 transaction
+        :return: Status of the messages
+        """

@@ -11,6 +11,7 @@ from starknet_py.net.client_models import (
     BlockStateUpdate,
     BlockTransactionTrace,
     Call,
+    ContractStorageKeys,
     DeclareTransactionResponse,
     DeployAccountTransactionResponse,
     DeprecatedContractClass,
@@ -18,6 +19,7 @@ from starknet_py.net.client_models import (
     EventsChunk,
     Hash,
     L1HandlerTransaction,
+    MessageStatus,
     PendingBlockStateUpdate,
     PendingStarknetBlock,
     PendingStarknetBlockWithReceipts,
@@ -29,6 +31,7 @@ from starknet_py.net.client_models import (
     StarknetBlock,
     StarknetBlockWithReceipts,
     StarknetBlockWithTxHashes,
+    StorageProofResponse,
     SyncStatus,
     Tag,
     Transaction,
@@ -37,6 +40,7 @@ from starknet_py.net.client_models import (
     TransactionTrace,
 )
 from starknet_py.net.client_utils import (
+    _clear_none_values,
     _create_broadcasted_txn,
     _is_valid_eth_address,
     _to_rpc_felt,
@@ -68,6 +72,7 @@ from starknet_py.net.schemas.rpc.contract import (
 )
 from starknet_py.net.schemas.rpc.event import EventsChunkSchema
 from starknet_py.net.schemas.rpc.general import EstimatedFeeSchema
+from starknet_py.net.schemas.rpc.storage_proof import StorageProofResponseSchema
 from starknet_py.net.schemas.rpc.trace_api import (
     BlockTransactionTraceSchema,
     SimulatedTransactionSchema,
@@ -76,6 +81,7 @@ from starknet_py.net.schemas.rpc.trace_api import (
 from starknet_py.net.schemas.rpc.transactions import (
     DeclareTransactionResponseSchema,
     DeployAccountTransactionResponseSchema,
+    MessageStatusSchema,
     SentTransactionSchema,
     TransactionReceiptSchema,
     TransactionStatusResponseSchema,
@@ -325,6 +331,27 @@ class FullNodeClient(Client):
         res = cast(str, res)
         return int(res, 16)
 
+    async def get_storage_proof(
+        self,
+        block_id: Union[int, Hash, Tag],
+        class_hashes: Optional[List[int]] = None,
+        contract_addresses: Optional[List[int]] = None,
+        contract_storage_keys: Optional[List[ContractStorageKeys]] = None,
+    ) -> StorageProofResponse:
+        params = {
+            "block_id": block_id,
+            "class_hashes": class_hashes,
+            "contract_addresses": contract_addresses,
+            "contract_storage_keys": contract_storage_keys,
+        }
+        params = _clear_none_values(params)
+
+        res = await self._client.call(
+            method_name="getStorageProof",
+            params=params,
+        )
+        return cast(StorageProofResponse, StorageProofResponseSchema().load(res))
+
     async def get_transaction(
         self,
         tx_hash: Hash,
@@ -455,6 +482,18 @@ class FullNodeClient(Client):
 
     async def get_chain_id(self) -> str:
         return await self._client.call(method_name="chainId", params={})
+
+    async def get_messages_status(
+        self, l1_transaction_hash: int
+    ) -> List[MessageStatus]:
+        res = await self._client.call(
+            method_name="getMessagesStatus",
+            params={"l1_transaction_hash": l1_transaction_hash},
+        )
+        return cast(
+            List[MessageStatus],
+            MessageStatusSchema().load(res, many=True),
+        )
 
     async def get_syncing_status(self) -> Union[bool, SyncStatus]:
         """Returns an object about the sync status, or false if the node is not syncing"""

@@ -381,9 +381,9 @@ class TransactionFinalityStatus(Enum):
 
 
 @dataclass
-class DataResources:
+class InnerCallExecutionResources:
     """
-    Dataclass representing the data-availability resources of the transaction
+    Dataclass representing resources consumed by the internal call
     """
 
     l1_gas: int
@@ -391,32 +391,12 @@ class DataResources:
 
 
 @dataclass
-class ComputationResources:
-    """
-    Dataclass representing the resources consumed by the VM.
-    """
-
-    # pylint: disable=too-many-instance-attributes
-
-    steps: int
-    memory_holes: Optional[int]
-    range_check_builtin_applications: Optional[int]
-    pedersen_builtin_applications: Optional[int]
-    poseidon_builtin_applications: Optional[int]
-    ec_op_builtin_applications: Optional[int]
-    ecdsa_builtin_applications: Optional[int]
-    bitwise_builtin_applications: Optional[int]
-    keccak_builtin_applications: Optional[int]
-    segment_arena_builtin: Optional[int]
-
-
-@dataclass
-class ExecutionResources(ComputationResources):
+class ExecutionResources(InnerCallExecutionResources):
     """
     Dataclass representing the resources consumed by the transaction, includes both computation and data.
     """
 
-    data_availability: DataResources
+    l2_gas: int
 
 
 # TODO (#1219): split into PendingTransactionReceipt and TransactionReceipt
@@ -618,27 +598,32 @@ class StorageDiffItem:
 
 @dataclass
 class EstimatedFee:
+    # pylint: disable=too-many-instance-attributes
     """
     Dataclass representing estimated fee.
     """
 
-    gas_consumed: int
-    gas_price: int
-    data_gas_consumed: int
-    data_gas_price: int
+    l1_gas_consumed: int
+    l1_gas_price: int
+    l2_gas_consumed: int
+    l2_gas_price: int
+    l1_data_gas_consumed: int
+    l1_data_gas_price: int
     overall_fee: int
     unit: PriceUnit
 
+    # TODO (#1498): Decrease multipliers
     def to_resource_bounds(
         self, amount_multiplier=1.5, unit_price_multiplier=1.5
     ) -> ResourceBoundsMapping:
         """
         Converts estimated fee to resource bounds with applied multipliers.
 
-        Calculates max amount as `max_amount` = `overall_fee` / `gas_price`, unless `gas_price` is 0,
-        then `max_amount` is 0. Calculates max price per unit as `max_price_per_unit` = `gas_price`.
+        Calculates L1 max amount as `l1_gas_consumed` * `amount_multiplier`.
+        Calculates L1 max price per unit as `l1_gas_price` * `unit_price_multiplier`.
 
-        Then multiplies `max_amount` by `amount_multiplier` and `max_price_per_unit` by `unit_price_multiplier`.
+        Calculates L2 max amount as `l2_gas_consumed` * `amount_multiplier`.
+        Calculates L2 max price per unit as `l2_gas_price` * `unit_price_multiplier`.
 
         :param amount_multiplier: Multiplier for max amount, defaults to 1.5.
         :param unit_price_multiplier: Multiplier for max price per unit, defaults to 1.5.
@@ -651,16 +636,17 @@ class EstimatedFee:
             )
 
         l1_resource_bounds = ResourceBounds(
-            max_amount=int(
-                (self.overall_fee / self.gas_price) * amount_multiplier
-                if self.gas_price != 0
-                else 0
-            ),
-            max_price_per_unit=int(self.gas_price * unit_price_multiplier),
+            max_amount=int(self.l1_gas_consumed * amount_multiplier),
+            max_price_per_unit=int(self.l1_gas_price * unit_price_multiplier),
+        )
+
+        l2_resource_bounds = ResourceBounds(
+            max_amount=int(self.l2_gas_consumed * amount_multiplier),
+            max_price_per_unit=int(self.l2_gas_price * unit_price_multiplier),
         )
 
         return ResourceBoundsMapping(
-            l1_gas=l1_resource_bounds, l2_gas=ResourceBounds.init_with_zeros()
+            l1_gas=l1_resource_bounds, l2_gas=l2_resource_bounds
         )
 
 
@@ -944,6 +930,7 @@ class TransactionStatusResponse:
 
     finality_status: TransactionStatus
     execution_status: Optional[TransactionExecutionStatus] = None
+    failure_reason: Optional[str] = None
 
 
 # ------------------------------- Trace API dataclasses -------------------------------
@@ -1019,7 +1006,7 @@ class FunctionInvocation:
     calls: List["FunctionInvocation"]
     events: List[OrderedEvent]
     messages: List[OrderedMessage]
-    computation_resources: ComputationResources
+    execution_resources: InnerCallExecutionResources
 
 
 @dataclass
@@ -1106,3 +1093,85 @@ class BlockTransactionTrace:
 
     transaction_hash: int
     trace_root: TransactionTrace
+
+
+@dataclass
+class BinaryNode:
+    """
+    Dataclass representing an internal node whose both children are non-zero.
+    """
+
+    left: int
+    right: int
+
+
+@dataclass
+class EdgeNode:
+    """
+    Dataclass representing a path to the highest non-zero descendant node.
+    """
+
+    path: int
+    length: int
+    child: int
+
+
+MerkleNode = Union[BinaryNode, EdgeNode]
+
+
+@dataclass
+class NodeHashToNodeMappingItem:
+    node_hash: int
+    node: MerkleNode
+
+
+NodeHashToNodeMapping = List[NodeHashToNodeMappingItem]
+
+
+@dataclass
+class ContractStorageKeys:
+    """
+    Dataclass representing a pair of contract address and storage keys.
+    """
+
+    contract_address: int
+    storage_keys: List[int]
+
+
+@dataclass
+class ContractLeafData:
+    nonce: int
+    class_hash: int
+
+
+@dataclass
+class GlobalRoots:
+    contracts_tree_root: int
+    classes_tree_root: int
+    block_hash: int
+
+
+@dataclass
+class ContractsProof:
+    nodes: NodeHashToNodeMapping
+    contract_leaves_data: List[ContractLeafData]
+    contracts_storage_proof: NodeHashToNodeMapping
+
+
+@dataclass
+class StorageProofResponse:
+    """
+    Dataclass representing a response to a storage proof request.
+    """
+
+    classes_proof: NodeHashToNodeMapping
+    contracts_proof: ContractsProof
+    contracts_storage_proofs: List[NodeHashToNodeMapping]
+    global_roots: GlobalRoots
+
+
+@dataclass
+class MessageStatus:
+    transaction_hash: int
+    finality_status: TransactionFinalityStatus
+    failure_reason: Optional[str] = None
