@@ -1,5 +1,5 @@
 import random
-from typing import Tuple
+from typing import List, Tuple
 
 from starknet_py.constants import EC_ORDER
 from starknet_py.contract import Contract
@@ -16,13 +16,28 @@ from starknet_py.tests.e2e.fixtures.constants import MAX_FEE
 AccountToBeDeployedDetails = Tuple[int, KeyPair, int, int]
 
 
-async def get_deploy_account_details(
-    *,
+def _new_address(
     class_hash: int,
+    calldata: List[int],
+):
+    salt = _get_random_salt()
+    return (
+        compute_address(
+            salt=salt,
+            class_hash=class_hash,
+            constructor_calldata=calldata,
+            deployer_address=0,
+        ),
+        salt,
+    )
+
+
+async def prepay_account(
+    *,
+    address: int,
     eth_fee_contract: Contract,
     strk_fee_contract: Contract,
-    argent_calldata: bool = False,
-) -> AccountToBeDeployedDetails:
+):
     """
     Returns address, key_pair, salt and class_hash of the account with validate deploy.
 
@@ -31,22 +46,6 @@ async def get_deploy_account_details(
     :param strk_fee_contract: Contract for prefunding deployments in STRK.
     :param argent_calldata: Flag deciding whether calldata should be in Argent-account format.
     """
-    priv_key = _get_random_private_key_unsafe()
-    key_pair = KeyPair.from_private_key(priv_key)
-    salt = _get_random_salt()
-
-    calldata = [key_pair.public_key]
-    if argent_calldata:
-        # Argent account's calldata to the constructor requires 'owner' and 'guardian', hence the additional 0 for the
-        # 'guardian'.
-        calldata.append(0)
-    address = compute_address(
-        salt=salt,
-        class_hash=class_hash,
-        constructor_calldata=calldata,
-        deployer_address=0,
-    )
-
     transfer_wei_res = await eth_fee_contract.functions["transfer"].invoke_v1(
         recipient=address, amount=int(1e19), max_fee=MAX_FEE
     )
@@ -56,8 +55,6 @@ async def get_deploy_account_details(
         recipient=address, amount=int(1e19), max_fee=MAX_FEE
     )
     await transfer_fri_res.wait_for_acceptance()
-
-    return address, key_pair, salt, class_hash
 
 
 async def get_deploy_account_transaction(
