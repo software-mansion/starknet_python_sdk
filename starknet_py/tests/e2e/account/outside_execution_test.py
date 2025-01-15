@@ -10,7 +10,6 @@ from starknet_py.net.client_models import (
     OutsideExecutionTimeBounds,
     ResourceBounds,
 )
-from starknet_py.tests.e2e.fixtures.constants import MAX_FEE
 from starknet_py.transaction_errors import TransactionRevertedError
 
 
@@ -19,19 +18,12 @@ async def test_argent_account_outside_execution_compatibility(
     argent_account: BaseAccount,
     argent_account_v040: BaseAccount,
 ):
-    result = await argent_account.supports_interface(OutsideExecutionInterfaceID.V1)
-    assert result is True
-    result = await argent_account.supports_interface(OutsideExecutionInterfaceID.V2)
-    assert result is False
-
-    result = await argent_account_v040.supports_interface(
-        OutsideExecutionInterfaceID.V1
-    )
-    assert result is True
-    result = await argent_account_v040.supports_interface(
-        OutsideExecutionInterfaceID.V2
-    )
-    assert result is True
+    for a, has_v1, has_v2 in [
+        (argent_account, True, False),
+        (argent_account_v040, True, True),
+    ]:
+        assert await a.supports_interface(OutsideExecutionInterfaceID.V1) is has_v1
+        assert await a.supports_interface(OutsideExecutionInterfaceID.V2) is has_v2
 
 
 @pytest.mark.asyncio
@@ -40,17 +32,6 @@ async def test_account_outside_execution_any_caller(
     account: BaseAccount,
     map_contract,
 ):
-    assert any(
-        [
-            await argent_account_v040.supports_interface(
-                OutsideExecutionInterfaceID.V1
-            ),
-            await argent_account_v040.supports_interface(
-                OutsideExecutionInterfaceID.V2
-            ),
-        ]
-    )
-
     put_call = Call(
         to_addr=map_contract.address,
         selector=get_selector_from_name("put"),
@@ -83,17 +64,6 @@ async def test_account_outside_execution_for_invalid_caller(
     account: BaseAccount,
     map_contract,
 ):
-    assert any(
-        [
-            await argent_account_v040.supports_interface(
-                OutsideExecutionInterfaceID.V1
-            ),
-            await argent_account_v040.supports_interface(
-                OutsideExecutionInterfaceID.V2
-            ),
-        ]
-    )
-
     random_address = 0x1234567890123456789012345678901234567890
 
     put_call = Call(
@@ -132,18 +102,6 @@ async def test_account_outside_execution_for_impossible_time_bounds(
     account: BaseAccount,
     map_contract,
 ):
-
-    assert any(
-        [
-            await argent_account_v040.supports_interface(
-                OutsideExecutionInterfaceID.V1
-            ),
-            await argent_account_v040.supports_interface(
-                OutsideExecutionInterfaceID.V2
-            ),
-        ]
-    )
-
     put_call = Call(
         to_addr=map_contract.address,
         selector=get_selector_from_name("put"),
@@ -159,7 +117,12 @@ async def test_account_outside_execution_for_impossible_time_bounds(
         caller=ANY_CALLER,
     )
 
-    tx = await account.execute_v1(calls=[call], max_fee=MAX_FEE)
+    tx = await account.execute_v3(
+        calls=[call],
+        l1_resource_bounds=ResourceBounds(
+            max_amount=int(1e5), max_price_per_unit=int(1e13)
+        ),
+    )
 
     with pytest.raises(TransactionRevertedError) as err:
         await argent_account_v040.client.wait_for_tx(tx.transaction_hash)
@@ -172,18 +135,6 @@ async def test_account_outside_execution_by_itself_is_impossible(
     argent_account_v040: BaseAccount,
     map_contract,
 ):
-
-    assert any(
-        [
-            await argent_account_v040.supports_interface(
-                OutsideExecutionInterfaceID.V1
-            ),
-            await argent_account_v040.supports_interface(
-                OutsideExecutionInterfaceID.V2
-            ),
-        ]
-    )
-
     put_call = Call(
         to_addr=map_contract.address,
         selector=get_selector_from_name("put"),
@@ -199,7 +150,12 @@ async def test_account_outside_execution_by_itself_is_impossible(
         caller=ANY_CALLER,
     )
 
-    tx = await argent_account_v040.execute_v1(calls=[call], max_fee=MAX_FEE)
+    tx = await argent_account_v040.execute_v3(
+        calls=[call],
+        l1_resource_bounds=ResourceBounds(
+            max_amount=int(1e5), max_price_per_unit=int(1e13)
+        ),
+    )
 
     with pytest.raises(TransactionRevertedError) as err:
         await argent_account_v040.client.wait_for_tx(tx.transaction_hash)
